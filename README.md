@@ -98,6 +98,7 @@ Supported compression algorithms:
 - gzip
 - deflate
 - brotli
+- zstd
 - snappy
 
 Please navigate through [_examples](_examples) directory for more.

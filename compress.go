@@ -12,6 +12,7 @@ import (
 	"github.com/klauspost/compress/gzip"
 	"github.com/klauspost/compress/s2" // Snappy output but likely faster decompression.
 	"github.com/klauspost/compress/snappy"
+	"github.com/klauspost/compress/zstd"
 )
 
 // The available builtin compression algorithms.
@@ -19,6 +20,7 @@ const (
 	GZIP    = "gzip"
 	DEFLATE = "deflate"
 	BROTLI  = "br"
+	ZSTD    = "zstd"
 	SNAPPY  = "snappy"
 	S2      = "s2"
 
@@ -43,7 +45,7 @@ var (
 
 // DefaultOffers is a slice of default content encodings.
 // See `NewResponseWriter`.
-var DefaultOffers = []string{GZIP, DEFLATE, BROTLI, SNAPPY}
+var DefaultOffers = []string{GZIP, DEFLATE, BROTLI, ZSTD, SNAPPY}
 
 // GetEncoding extracts the best available encoding from the request.
 func GetEncoding(r *http.Request, offers []string) (string, error) {
@@ -82,6 +84,14 @@ func NewWriter(w io.Writer, encoding string, level int) (cw Writer, err error) {
 			level = 6
 		}
 		cw = brotli.NewWriterLevel(w, level)
+	case ZSTD: // -1 default level, same for gzip.
+		var encoderLevel zstd.EncoderLevel
+		if level == -1 {
+			encoderLevel = zstd.SpeedDefault
+		} else {
+			encoderLevel = zstd.EncoderLevelFromZstd(level)
+		}
+		cw, err = zstd.NewWriter(w, zstd.WithEncoderLevel(encoderLevel))
 	case SNAPPY:
 		cw = snappy.NewWriter(w)
 	case S2:
@@ -127,6 +137,12 @@ func NewReader(src io.Reader, encoding string) (*Reader, error) {
 		rc = flate.NewReader(src)
 	case BROTLI:
 		rc = &noOpReadCloser{brotli.NewReader(src)}
+	case ZSTD:
+		var dc *zstd.Decoder
+		dc, err = zstd.NewReader(src)
+		if dc != nil {
+			rc = &noOpReadCloser{dc}
+		}
 	case SNAPPY:
 		rc = &noOpReadCloser{snappy.NewReader(src)}
 	case S2:
@@ -188,7 +204,7 @@ var _ http.ResponseWriter = (*ResponseWriter)(nil)
 // It accepts http response writer, a net/http request value and
 // the level of compression (use -1 for default compression level).
 //
-// It returns the best candidate among "gzip", "defate", "br", "snappy" and "s2"
+// It returns the best candidate among "gzip", "defate", "br", "zstd", "snappy" and "s2"
 // based on the request's "Accept-Encoding" header value.
 //
 // See `Handler/WriteHandler` for its usage. In-short, the caller should

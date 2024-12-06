@@ -16,6 +16,7 @@ const baseURL = "http://localhost:8080"
 // - "gzip",
 // - "deflate",
 // - "br" (for brotli),
+// - "zstd",
 // - "snappy" and
 // - "s2"
 const encoding = compress.BROTLI
